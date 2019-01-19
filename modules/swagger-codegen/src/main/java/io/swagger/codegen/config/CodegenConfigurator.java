@@ -2,6 +2,7 @@ package io.swagger.codegen.config;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.codegen.CliOption;
 import io.swagger.codegen.ClientOptInput;
 import io.swagger.codegen.ClientOpts;
@@ -13,6 +14,8 @@ import io.swagger.models.Swagger;
 import io.swagger.models.auth.AuthorizationValue;
 import io.swagger.parser.SwaggerParser;
 import io.swagger.util.Json;
+import io.swagger.util.Yaml;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,13 +23,11 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
+import static org.apache.commons.lang3.StringUtils.isAlpha;
 import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 
 /**
@@ -503,13 +504,43 @@ public class CodegenConfigurator implements Serializable {
     public static CodegenConfigurator fromFile(String configFile) {
 
         if (isNotEmpty(configFile)) {
-            try {
-                return Json.mapper().readValue(new File(configFile), CodegenConfigurator.class);
-            } catch (IOException e) {
-                LOGGER.error("Unable to deserialize config file: " + configFile, e);
+            if (isJsonFile(configFile)) {
+                return fromJsonFile(configFile);
+            }
+            if (isYamlFile(configFile)) {
+                return fromYamlFile(configFile);
             }
         }
         return null;
+    }
+
+    private static boolean isJsonFile(String configFile) {
+        return hasExtension(configFile, "json");
+    }
+
+    private static CodegenConfigurator fromJsonFile(String configFile) {
+        return readFromFile(configFile, Json.mapper());
+    }
+
+    private static boolean isYamlFile(String configFile) {
+        return hasExtension(configFile, "yaml");
+    }
+
+    private static CodegenConfigurator fromYamlFile(String configFile) {
+        return readFromFile(configFile, Yaml.mapper());
+    }
+
+    private static boolean hasExtension(String configFile, String extension) {
+        return Objects.equals(FilenameUtils.getExtension(configFile), extension);
+    }
+
+    private static CodegenConfigurator readFromFile(String configFile, ObjectMapper mapper) {
+        try {
+            return mapper.readValue(new File(configFile), CodegenConfigurator.class);
+        } catch (IOException e) {
+            LOGGER.error("Unable to deserialize config file: " + configFile, e);
+            return null;
+        }
     }
 
 }

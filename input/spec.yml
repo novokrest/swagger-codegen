@@ -1,0 +1,267 @@
+openapi: "3.0.1"
+info:
+  version: "1.0.0"
+  title: Yandes.Money Fines Web API
+  description: |
+    # Описание
+    Внутреннее API, предназначеное для получения информации о штрафах.
+    Единственный клиент API - бэкенд верстки портала Яндекс.Деньги.
+    Ограничение доступа к ручкам осуществляется на сетевом уровне настройками nginx.
+
+    Данные о штрафах могут быть получены как по документам пользователя,
+    так и по уникальному идентификатору начисления (далее - УИН).
+  contact:
+    name: Konstantin Novokreshchenov
+    email: knovokreshchenov@yamoney.ru
+
+servers:
+  - url: /debt-checker-api/api/web/fines
+
+paths:
+  /photos:
+    get:
+      summary: Получение фотографий о штрафе
+      description: |
+        Команда возвращает список фотографий, связанных с правонарушением.
+        На данный момент получение фотографий поддерживается только для московских штрафов.
+      parameters:
+      - in: query
+        description: Идентификатор контекста поиска, полученный в ответе команды поиска штрафов
+        name: requestId
+        schema:
+          type: string
+        required: true
+        example: '3238343835343236395f37616434303836373866323764353535306432376465633139303864346661663739353666336236'
+      - in: query
+        description: Уникальный идентификатор начисления
+        name: billId
+        schema:
+          type: string
+        required: true
+      responses:
+        200:
+          $ref: '#/components/responses/GetPhotosResponse'
+        400:
+          $ref: '#/components/responses/ArgumentsError'
+        404:
+          $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/TechnicalError'
+
+  /additional-data:
+    get:
+      summary: Получение дополнительной информации о штрафе
+      description: |
+        Команда дополнительную информацию о штрафе, включающую статью КоАП,
+        место и время совершения правонарушения, по которому выписан данный штраф
+      parameters:
+      - in: query
+        description: Идентификатор контекста поиска, полученный в ответе команды поиска штрафов
+        name: requestId
+        schema:
+          type: string
+        required: true
+        example: '3238343835343236395f37616434303836373866323764353535306432376465633139303864346661663739353666336236'
+      - in: query
+        description: Уникальный идентификатор начисления
+        name: billId
+        schema:
+          type: string
+        required: true
+      responses:
+        200:
+          $ref: '#/components/responses/GetAdditionalDataResponse'
+        400:
+          $ref: '#/components/responses/ArgumentsError'
+        404:
+          $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/TechnicalError'
+
+components:
+  schemas:
+    Offense:
+      description: |
+        Информация о правонарушении
+      properties:
+        dateTime:
+          description: Время совершения правонарушения
+          type: string
+          example: '2018-12-25T01:00:00.245+03:00'
+        location:
+          description: Место совершения правонарушения
+          type: object
+          properties:
+            address:
+              description: Адрес совершения правонарушения
+              type: string
+              example: 'г. Москва, Варшавское ш. (дублер), д. 74 корп. 2'
+            coordinates:
+              description: Координаты места совершения правонарушения
+              $ref: '#/components/schemas/GeoCoordinates'
+
+    GeoCoordinates:
+      description: |
+        Данные о координате. Представляет пару значений широты и долготы
+      type: object
+      properties:
+        latitude:
+          description: Широта
+          type: string
+          example: '68.34529850'
+        longitude:
+          description: Долгота
+          type: string
+          example: '78.3253244'
+
+    ArgumentsError:
+      description: |
+        Запрос с указанными параметрами не может быть выполнен:
+        * отсутствуют обязательные параметры запроса или они имеют недопустимые значения;
+        * отсутствуют обязательные HTTP-заголовки запроса или они имеют недопустимое значение;
+        * формат запроса содержит синтаксические ошибки;
+
+        Коды ошибок:
+        * SyntaxError - Нарушен синтаксис запроса, запрос невозможно разобрать.
+        * IllegalParameters - Параметры запроса отсутствуют или имеют недопустимое значение.
+        * IllegalHeaders - HTTP-заголовоки запроса отсутствуют или имеют недопустимое значение.
+      type: object
+      properties:
+        type:
+          description: Код ошибки.
+          type: string
+          enum:
+          - SyntaxError
+          - IllegalParameters
+          - IllegalHeaders
+          example: IllegalParameters
+        parameterNames:
+          description: |
+            Список наименований и путей параметров, содержащих некорректные значения.
+            Присутствует при type=IllegalParameters.
+          type: array
+          items:
+            type: string
+            example: email
+            description: |
+              Имя параметра включая его полный путь в JSON документе.
+              Поле вложенного объекта указывается через точку.
+              Номер элемента списка указывается в квадратных скобках.
+
+              Примеры:
+
+                * requestId
+        headerNames:
+          description: Список наименований заголовков запроса, содержащих некорректные значения. Присутствует при type=IllegalHeaders.
+          type: array
+          items:
+            type: string
+            example: Authorization
+      required:
+      - type
+
+  responses:
+    GetPhotosResponse:
+      description: |
+        Ответ со списком фотографий правонарушения. Каждая фотография передается в виде URL-ссылки.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              photos:
+                description: Список URL-ссылок на фотографии в Яндекс.Аватарнице
+                type: array
+                items:
+                  type: string
+                  example: 'https://avatar.yandex.ru/fine-18810177181214254317.jpg'
+            required:
+              - photos
+
+    GetAdditionalDataResponse:
+      description: |
+        Ответ с дополнительной информацией о штрафе
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              aritcleCodeWithDetails:
+                type: string
+                example: '12.09.2 - Превышение скорости движения ТС от 20 до 40 км/ч'
+              offense:
+                $ref: '#/components/schemas/Offense'
+            required:
+              - aritcleCodeWithDetails
+              - offense
+
+    ArgumentsError:
+      description: Запрос с указанными параметрами не может быть выполнен.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                $ref: '#/components/schemas/ArgumentsError'
+
+    NotFoundError:
+      description: |
+        Запрашиваемый объект или ресурс не найден.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  type:
+                    description: Код ошибки.
+                    type: string
+                    enum:
+                    - NotFound
+                    example: NotFound
+                required:
+                - type
+            required:
+            - error
+
+    TechnicalError:
+      description: |
+        Техническая ошибка. Результат выполнения запроса неизвестен.
+        Клиенту следует повторить запрос с теми же аргументами спустя указанное
+        время ожидания.
+
+        Коды ошибок:
+        * TechnicalError - Техническая ошибка сервиса.
+        * ServiceUnavailable - Сервис временно недоступен.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  type:
+                    description: Код ошибки
+                    type: string
+                    enum:
+                    - TechnicalError
+                    - ServiceUnavailable
+                    example: TechnicalError
+                  retryAfter:
+                    description: |
+                      Рекомендуемое количество миллисекунд, спустя которое
+                      следует повторить запрос.
+                    type: integer
+                    format: int64
+                    example: 5000
+                    minimum: 10
+                  description:
+                    description: |
+                      Дополнительное текстовое пояснение причины ошибки. Может
+                      присутствовать в некоторых случаях.
+                    type: string
+                    example: 'Technical error'
